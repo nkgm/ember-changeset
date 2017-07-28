@@ -71,6 +71,29 @@ test('it rollsback changes', async function(assert) {
   assert.equal(find('#first-name').value, 'Jim', 'should rollback');
 });
 
+test('a rollback propagates binding to deeply nested changesets', async function(assert) {
+  let data = { person: { details: { firstName: 'Jim', lastName: 'Bob' } } };
+  let changeset = new Changeset(data);
+  this.set('childChangeset', changeset.get('person.details'));
+  this.on('reset', () => changeset.rollback());
+  this.render(hbs`
+      <h1>{{childChangeset.firstName}} {{childChangeset.lastName}}</h1>
+      <input
+        id="first-name"
+        type="text"
+        value={{childChangeset.firstName}}
+        onchange={{action (mut childChangeset.firstName) value="target.value"}}>
+      {{input id="last-name" value=childChangeset.lastName}}
+      <button id="reset-btn" {{action "reset"}}>Reset</button>
+  `);
+
+  assert.equal(find('h1').textContent.trim(), 'Jim Bob', 'precondition');
+  await fillIn('#first-name', 'foo');
+  await fillIn('#last-name', 'bar');
+  await click('#reset-btn');
+  assert.equal(find('h1').textContent.trim(), 'foo bar', 'should update observable value');
+});
+
 test('it can be used with 1 argument', async function(assert) {
   this.set('dummyModel', { firstName: 'Jim', lastName: 'Bob' });
   this.on('submit', (changeset) => changeset.validate());
